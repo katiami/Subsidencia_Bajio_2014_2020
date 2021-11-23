@@ -1,0 +1,538 @@
+## import  libraries 
+
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(extrafont)
+
+
+getwd()
+
+dir()
+
+## import  database
+DATOS <- read_xlsx("peligro_v02.xlsx"  , sheet = 1 ) 
+
+
+######____________________________    Urban areas with and without subsidence _____________________________#####
+
+
+## calculate total area 
+AREA_total = colSums(DATOS [ ,238])   
+
+## Brake up the database: one with subsidence and the other without subsidence 
+
+SIN_SUB<- DATOS %>% filter(PELIGRO == 'NULO')
+
+
+CON_SUB<- DATOS%>% filter(PELIGRO !='NULO')
+
+#nrow(DATOS)
+
+## calculate the sum of  affected areas  by subsidence and  unaffected areas
+AREA_CON_SUB = colSums(CON_SUB[ , 238])    
+
+AREA_SIN_SUB =colSums(SIN_SUB[ ,238])       
+
+#calculate the percentage of affected areas and unaffected areas 
+
+
+POR_AREA_CON_SUB <- AREA_CON_SUB*100/ AREA_total  #   41.31 % 
+
+POR_AREA_SIN_SUB <- AREA_SIN_SUB*100/ AREA_total  ###  58.68 % 
+
+
+
+
+
+######          Database_1: Statistics by municipality          ######
+
+## Group the data for each municipality 
+peligro_agr <-DATOS %>%  group_by(NOM_MUN)
+
+
+## Add the population and the area for each municipality 
+
+
+peligro_agr_f<- peligro_agr %>% summarise(
+  Area_Ha_tot = sum(Area_Ha),
+  POblacion_tot = sum(POB_TOT)
+)
+
+## Group the database using the municipality's names
+SUBSIDENCIA <-CON_SUB %>%  group_by(NOM_MUN)
+
+
+
+# Add the population and the area for each municipality only for subsidence areas 
+
+sUB <- SUBSIDENCIA %>% summarise(
+  Area_Ha_sub = sum(Area_Ha),
+  POblacion_sub = sum(POB_TOT)
+)
+
+### join the database with subsidence values for each municipality and the base data with the  total information of each municipality  
+
+mun_estadistica<- merge(sUB , peligro_agr_f)
+
+
+
+#calculate the percentage of affected areas and population for each municipality 
+
+mun_estadistica$POR_AREA_SUB <- mun_estadistica$Area_Ha_sub*100/mun_estadistica$Area_Ha_tot
+
+mun_estadistica$POR_POB_SUB <- mun_estadistica$POblacion_sub*100/mun_estadistica$POblacion_tot 
+
+## Export the database 
+write.csv(x = Peligro_estadistica, file = "Peligro_mun_2.csv", row.names = FALSE) 
+
+
+
+
+####         Graph_1:   AGEBS affected by subsidence      ####
+
+
+grafica_estadistica <- ggplot(data=DATOS, mapping = aes(x= factor (NOM_MUN) , fill= factor(PELIGRO, levels = c( "ALTO","MEDIO", "BAJO", "NULO"))))
+
+windowsFonts() 
+
+
+GRAFICA<- grafica_estadistica + geom_bar(position = 'stack', stat='count' ) +   
+  labs(x = "Municipio",y = " AGBs afectados")+ 
+  ggtitle ("AGEBs afectados por subsidencia")  + 
+  
+  scale_fill_manual(breaks = c("ALTO", "MEDIO", "BAJO", "NULO"), 
+                    values=c("red", "#FFA200", "#FFFF66", "#85CF00"))   
+
+## Axis style 
+
+GRAFICA_ESTILOS<- GRAFICA+ theme_minimal()+ theme(axis.text=element_text(size=8),
+                              axis.title=element_text(size=10,face="bold"), plot.title = element_text(hjust = 0.5))   
+
+## Title format 
+
+GRAFICA_TITLE<-GRAFICA_ESTILOS+ theme (plot.title = element_text(family="serif",
+                                       size= 15, 
+                                       vjust=0.5,
+                                       hjust =0.5, 
+                                       face="bold.italic", 
+                                       color="#003333", 
+                                       lineheight=1.5))  
+## Legend
+
+GRAFICA_AGEBS_SUB<- GRAFICA_TITLE+ theme(legend.title=element_text(size=12, family="serif"), axis.text.x = element_text(size=10, angle = 90, hjust = 1), legend.text=element_text(size=8))+ labs(fill = "Peligro")
+
+
+
+
+####  Graph_2:   Vulnerability for AGEB  #####
+
+grafica_estadistica <- ggplot(data=DATOS, mapping = aes(x= factor (NOM_MUN) , fill= factor (VSE_CLASE, levels = c("MUY ALTA", "ALTA", "MODERADA", "BAJA", "MUY BAJA") )))
+
+
+
+
+GRAFICA<- grafica_estadistica + geom_bar(position = 'stack', stat='count' ) +  
+  labs(x = "Municipio",y = "Número de AGBs afectados")+ 
+  ggtitle ("Vulnerabilidad socioeconómica")  + 
+  
+  scale_fill_manual(breaks = c("MUY ALTA", "ALTA", "MODERADA", "BAJA", "MUY BAJA"), 
+                    values=c("red", "#FFAE00", "#FFFF66",  "#C3FF00", "#85CF00")) 
+
+## Axis style 
+ 
+GRAFICA_ESTILOS<- GRAFICA+ theme_minimal()+ theme(axis.text=element_text(size=8),
+                                                  axis.title=element_text(size=10,face="bold"), plot.title = element_text(hjust = 0.5))   
+
+## Title format 
+
+GRAFICA_NUM_AGEB<-GRAFICA_ESTILOS+ theme (plot.title = element_text(family="serif",
+                                                                    size= 15, 
+                                                                    vjust=0.5,
+                                                                    hjust =0.5, 
+                                                                    face="bold.italic", 
+                                                                    color="#003333", 
+                                                                    lineheight=1.5))  
+## Legend
+
+GRAFICA_VULNERABILIDAD<- GRAFICA_NUM_AGEB+ theme(legend.title=element_text(size=10, face="bold.italic", family="serif"), axis.text.x = element_text(angle = 90, hjust = 1), legend.text=element_text(size=8))+ labs(fill = "Vulnerabilidad")
+
+
+
+
+######      Database_2: Municipality with subsidence     #######
+
+pro<-apply(X = CON_SUB[,7], MARGIN = 1, FUN =group_by("NOM_MUN"))
+
+
+prueba <- DATOS %>% group_by(NOM_MUN)
+#### create filter for CELATA
+
+Celaya<- DATOS %>% filter(NOM_MUN =='Celaya')
+
+CELAYA_AREA_total = colSums(Celaya [ ,237]) 
+CELAYA_POB_total = colSums(Celaya [ ,10])
+
+## Group by  hazard
+celaya <- Celaya %>%  group_by(PELIGRO)
+
+names(celaya)
+Celaya_FINAL <- celaya %>% summarise(
+  Area_Ha_sub = sum(Area_Ha),
+  POblacion_sub = sum(POB_TOT)
+)
+#### Calculate the  percentage  of population and area affected 
+
+
+
+Celaya_FINAL$POR_AREA_SUB <- Celaya_FINAL$Area_Ha_sub *100/ CELAYA_AREA_total
+
+Celaya_FINAL$POR_POB_SUB <- Celaya_FINAL$POblacion_sub*100/ CELAYA_POB_total
+
+Celaya_FINAL$MUN <- "Celaya"
+
+## create filter for IRAPUATO
+Irapuato<- DATOS %>% filter(NOM_MUN =='Irapuato')
+IRAPUATO_AREA_total = colSums(Irapuato [ ,237]) 
+IRAPUATO_POB_total = colSums(Irapuato [ ,10])
+
+## Group by hazard 
+
+Irapuato <- Irapuato %>%  group_by(PELIGRO)
+
+str(Irapuato$POBTOT)
+IRAPUATO_FINAL <- Irapuato %>% summarise(
+  Area_Ha_sub = sum(Area_Ha),
+  POblacion_sub = sum(POB_TOT)
+)
+
+####  Calculate the  percentage  of population and area affected 
+
+IRAPUATO_FINAL$POR_AREA_SUB <- IRAPUATO_FINAL$Area_Ha_sub *100/ IRAPUATO_AREA_total
+
+IRAPUATO_FINAL$POR_POB_SUB <- IRAPUATO_FINAL$POblacion_sub*100/ IRAPUATO_POB_total
+
+IRAPUATO_FINAL$MUN <- "Irapuato"
+
+## #### create filter for SALAMANCA
+
+
+Salamanca <- DATOS %>% filter(NOM_MUN =='Salamanca')
+
+SALAMANCA_AREA_total = colSums(Salamanca [ ,237]) 
+SALAMANCA_POB_total = colSums(Salamanca [ ,10])
+
+
+## Group by  hazard
+Salamanca <- Salamanca %>%  group_by(PELIGRO)
+
+
+SALAMANCA_FINAL <- Salamanca%>% summarise(
+  Area_Ha_sub = sum(Area_Ha),
+  POblacion_sub = sum(POB_TOT)
+)
+
+####  Calculate the percentage  of population and area affected 
+
+SALAMANCA_FINAL$POR_AREA_SUB <- SALAMANCA_FINAL$Area_Ha_sub *100/ SALAMANCA_AREA_total
+
+SALAMANCA_FINAL$POR_POB_SUB <- SALAMANCA_FINAL$POblacion_sub*100/ SALAMANCA_POB_total
+
+SALAMANCA_FINAL$MUN <- "Salamanca"
+
+
+## #### create filter for Apaseo el Grande
+
+
+APASEO <- DATOS %>% filter(NOM_MUN =='Apaseo el Grande')
+
+APASEO_AREA_total = colSums(APASEO [ ,237]) 
+APASEO_POB_total = colSums(APASEO [ ,10])
+
+
+## Group by  hazard
+
+APASEO <- APASEO %>%  group_by(PELIGRO)
+
+
+APASEO_FINAL <- APASEO %>% summarise(
+  Area_Ha_sub = sum(Area_Ha),
+  POblacion_sub = sum(POB_TOT)
+)
+
+####  Calculate the percentage  of population and area affected 
+
+APASEO_FINAL$POR_AREA_SUB <- APASEO_FINAL$Area_Ha_sub *100/ APASEO_AREA_total
+
+APASEO_FINAL$POR_POB_SUB <- APASEO_FINAL$POblacion_sub*100/ APASEO_POB_total
+
+APASEO_FINAL$MUN <- "Apaseo el Grande"
+
+
+
+# #### create filter for Tarimoro
+
+
+Tarimoro <- DATOS %>% filter(NOM_MUN =='Tarimoro')
+
+View(DATOS)
+
+Tarimoro_AREA_total = colSums(Tarimoro[ ,237]) 
+Tarimoro_POB_total = colSums(Tarimoro [ ,10])
+
+
+## Group by  hazard
+
+Tarimoro <- Tarimoro %>%  group_by(PELIGRO)
+
+
+Tarimoro_FINAL <- Tarimoro %>% summarise(
+  Area_Ha_sub = sum(Area_Ha),
+  POblacion_sub = sum(POB_TOT)
+)
+
+####  Calculate the  percentage  of population and area affected 
+
+Tarimoro_FINAL$POR_AREA_SUB <- Tarimoro_FINAL$Area_Ha_sub *100/ Tarimoro_AREA_total
+
+Tarimoro_FINAL$POR_POB_SUB <- Tarimoro_FINAL$POblacion_sub*100/ Tarimoro_POB_total
+
+Tarimoro_FINAL$MUN <- "Tarimoro"
+
+
+# #### create filter for VILLAGÁN
+
+VILLAGRAN <- DATOS %>% filter(NOM_MUN =='Villagrán')
+
+VILLAGRAN_AREA_total = colSums(VILLAGRAN[ ,237]) 
+VILLAGRAN_POB_total = colSums(VILLAGRAN [ ,10])
+
+
+## Group by  hazard
+
+VILLAGRAN <- VILLAGRAN %>%  group_by(PELIGRO)
+
+
+VILLAGRAN_FINAL <- VILLAGRAN %>% summarise(
+  Area_Ha_sub = sum(Area_Ha),
+  POblacion_sub = sum(POB_TOT)
+)
+
+####  Calculate the  percentage  of population and area affected 
+
+VILLAGRAN_FINAL$POR_AREA_SUB <- VILLAGRAN_FINAL$Area_Ha_sub *100/ VILLAGRAN_AREA_total
+
+VILLAGRAN_FINAL$POR_POB_SUB <- VILLAGRAN_FINAL$POblacion_sub*100/ VILLAGRAN_POB_total
+
+VILLAGRAN_FINAL$MUN <- "Villagrán"
+
+
+
+## Join the databases 
+
+Peligro_estadistica<- rbind(VILLAGRAN_FINAL, Tarimoro_FINAL, APASEO_FINAL, IRAPUATO_FINAL,  Celaya_FINAL, SALAMANCA_FINAL  )
+
+
+#####  Graph_3:   susceptible population in each municipality  #####
+
+p <- ggplot(Peligro_estadistica, aes(MUN, POR_POB_SUB, fill= factor(PELIGRO, levels = c("ALTO", "MEDIO", "BAJO", "NULO"))))
+
+
+GRAFICA<- p + geom_bar(stat="identity", position = 'dodge')+  
+  labs(x = "Municipio",y =  "Población susceptible")+ 
+  ggtitle ("Población suceptible")  + 
+  
+  scale_fill_manual(breaks = c("ALTO", "MEDIO", "BAJO", "NULO"), 
+                    values=c("red","#FFAE00", "#FFFF66", "#85CF00")) 
+## Axis style 
+
+GRAFICA_ESTILOS<- GRAFICA+ theme_minimal()+ theme(axis.text=element_text(size=8),
+                                                  axis.title=element_text(size=10,face="bold"), plot.title = element_text(hjust = 0.5))   
+
+## Title format 
+
+GRAFICA_ESTILOS<-GRAFICA_ESTILOS+ theme (plot.title = element_text(family="serif",
+                                                                    size= 15, 
+                                                                    vjust=0.5,
+                                                                    hjust =0.5, 
+                                                                    face="bold.italic", 
+                                                                    color="#003333", 
+                                                                    lineheight=1.5))  
+#### Legend
+
+GRAFICA_peligro_mun<- GRAFICA_ESTILOS+ theme(legend.title=element_text(size=10, face="bold.italic", family="serif"), legend.text=element_text(size=8))+ labs(fill = " Susceptiblilidad a subsi")
+
+
+
+
+
+######      Database_3: Vulnerability by municipality    #######
+
+#### #### create filter for CELATA
+Celaya_VSE<- DATOS %>% filter(NOM_MUN =='Celaya')
+
+CELAYA_AREA_total = colSums(Celaya_VSE [ ,237]) 
+CELAYA_POB_total = colSums(Celaya_VSE [ ,10])
+
+## Group by  vulnerability   
+celaya_VSE <- Celaya_VSE %>%  group_by(VSE_CLASE)
+Celaya_FINAL_VSE <- celaya_VSE %>% summarise(
+  Area_Ha = sum(Area_Ha),
+  POblacion = sum(POB_TOT)
+)
+#### Calculate the percentage  of population and area affected 
+
+
+Celaya_FINAL_VSE$POR_AREA_VSE <- Celaya_FINAL_VSE$Area_Ha *100/ CELAYA_AREA_total
+
+Celaya_FINAL_VSE$POR_POB_VSE <- Celaya_FINAL_VSE$POblacion*100/ CELAYA_POB_total
+
+Celaya_FINAL_VSE$MUN <- "Celaya"
+
+# #### create filter for IRAPUATO
+Irapuato_VSE<- DATOS %>% filter(NOM_MUN =='Irapuato')
+IRAPUATO_AREA_total = colSums(Irapuato_VSE [ ,237]) 
+IRAPUATO_POB_total = colSums(Irapuato_VSE [ ,10])
+
+## Group by  vulnerability  
+
+Irapuato_VSE <- Irapuato_VSE %>%  group_by(VSE_CLASE)
+
+
+IRAPUATO_FINAL_VSE <- Irapuato_VSE %>% summarise(
+  Area_Ha = sum(Area_Ha),
+  POblacion= sum(POB_TOT)
+)
+
+#### Calculate the percentage  of population and area affected 
+
+IRAPUATO_FINAL_VSE$POR_AREA_VSE <- IRAPUATO_FINAL_VSE$Area_Ha *100/ IRAPUATO_AREA_total
+
+IRAPUATO_FINAL_VSE$POR_POB_VSE <- IRAPUATO_FINAL_VSE$POblacion*100/ IRAPUATO_POB_total
+
+IRAPUATO_FINAL_VSE$MUN <- "Irapuato"
+
+## ####  SALAMANCA  
+
+## Group by  vulnerability   
+
+Salamanca_VSE <- Salamanca %>%  group_by(VSE_CLASE)
+
+
+SALAMANCA_FINAL_VSE <- Salamanca_VSE%>% summarise(
+  Area_Ha = sum(Area_Ha),
+  POblacion = sum(POB_TOT)
+)
+
+#### Calculate the percentage  of population and area affected 
+
+SALAMANCA_FINAL_VSE$POR_AREA_VSE <- SALAMANCA_FINAL_VSE$Area_Ha *100/ SALAMANCA_AREA_total
+
+SALAMANCA_FINAL_VSE$POR_POB_VSE <- SALAMANCA_FINAL_VSE$POblacion*100/ SALAMANCA_POB_total
+
+SALAMANCA_FINAL_VSE$MUN <- "Salamanca"
+
+### Apaseo el Grande 
+
+## Group by  vulnerability  
+
+APASEO_VSE <- APASEO %>%  group_by(VSE_CLASE)
+
+
+APASEO_FINAL_VSE <- APASEO_VSE %>% summarise(
+  Area_Ha = sum(Area_Ha),
+  POblacion = sum(POB_TOT)
+)
+
+#### Calculate the percentage  of population and area affected 
+
+APASEO_FINAL_VSE$POR_AREA_VSE <- APASEO_FINAL_VSE$Area_Ha *100/ APASEO_AREA_total
+
+APASEO_FINAL_VSE$POR_POB_VSE <- APASEO_FINAL_VSE$POblacion*100/ APASEO_POB_total
+
+APASEO_FINAL_VSE$MUN <- "Apaseo el Grande"
+
+
+
+# #### Tarimoro
+
+
+## Group by  vulnerability  
+
+Tarimoro_VSE <- Tarimoro %>%  group_by(VSE_CLASE)
+
+
+Tarimoro_FINAL_VSE <- Tarimoro_VSE %>% summarise(
+  Area_Ha= sum(Area_Ha),
+  POblacion = sum(POB_TOT)
+)
+
+### Calculate the  percentage  of population and area affected 
+
+Tarimoro_FINAL_VSE$POR_AREA_VSE <- Tarimoro_FINAL_VSE$Area_Ha *100/ Tarimoro_AREA_total
+
+Tarimoro_FINAL_VSE$POR_POB_VSE <- Tarimoro_FINAL_VSE$POblacion*100/ Tarimoro_POB_total
+
+Tarimoro_FINAL_VSE$MUN <- "Tarimoro"
+
+
+#### create filter for vILLAGÁN
+
+VILLAGRAN <- DATOS %>% filter(NOM_MUN =='Villagrán')
+
+VILLAGRAN_AREA_total = colSums(VILLAGRAN[ ,237]) 
+VILLAGRAN_POB_total = colSums(VILLAGRAN [ ,10])
+
+
+## Group by  vulnerability  
+
+VILLAGRAN_VSE <- VILLAGRAN %>%  group_by(VSE_CLASE)
+
+
+VILLAGRAN_FINAL_VSE <- VILLAGRAN_VSE %>% summarise(
+  Area_Ha = sum(Area_Ha),
+  POblacion = sum(POB_TOT)
+)
+
+#### ### Calculate the  percentage  of population and area affected 
+VILLAGRAN_FINAL_VSE$POR_AREA_VSE <- VILLAGRAN_FINAL_VSE$Area_Ha *100/ VILLAGRAN_AREA_total
+
+VILLAGRAN_FINAL_VSE$POR_POB_VSE <- VILLAGRAN_FINAL_VSE$POblacion*100/ VILLAGRAN_POB_total
+
+VILLAGRAN_FINAL_VSE$MUN <- "Villagrán"
+
+
+
+## cOMBINAMOS LAS BASES DE DATOS
+
+VULNERABILIDAD_estadistica<- rbind(VILLAGRAN_FINAL_VSE, Tarimoro_FINAL_VSE, APASEO_FINAL_VSE, IRAPUATO_FINAL_VSE,  Celaya_FINAL_VSE, SALAMANCA_FINAL_VSE  )
+View(VULNERABILIDAD_estadistica)
+
+##### Graph_4:   Vulnerability and affected population ####
+p <- ggplot(VULNERABILIDAD_estadistica, aes(MUN, POR_POB_VSE, fill= factor(VSE_CLASE, levels = c("MUY BAJA", "BAJA", "MODERADA", "ALTA", "MUY ALTA"))))
+
+GRAFICA<- p + geom_bar(position = 'dodge', stat= "identity" ) +  
+  labs(x = "Municipio",y = "% de población afectada")+ 
+  ggtitle ("Vulnerabilidad socioeconómica")  + 
+  
+  scale_fill_manual(breaks = c("MUY ALTA", "ALTA", "MODERADA", "BAJA", "MUY BAJA"), 
+                    values=c("red", "#FF6666", "#FFA200",  "#FFFF00", "#FFFF66")) 
+## Axis style 
+
+GRAFICA_ESTILOS<- GRAFICA+ theme_minimal()+ theme(axis.text=element_text(size=8),
+                                                  axis.title=element_text(size=10,face="bold"), plot.title = element_text(hjust = 0.5))   
+
+## Title format  
+
+GRAFICA_ESTILOS<-GRAFICA_ESTILOS+ theme (plot.title = element_text(family="serif",
+                                                                    size= 15, 
+                                                                    vjust=0.5,
+                                                                    hjust =0.5, 
+                                                                    face="bold.italic", 
+                                                                    color="#003333", 
+                                                                    lineheight=1.5))  
+## Legend
+
+GRAFICA_VULNERABILIDAD_POBLACION <- GRAFICA_ESTILOS+ theme(legend.title=element_text(size=10, family="serif"), legend.text=element_text(size=8))+ labs(fill = "Vulnerabilidad")
+
+
